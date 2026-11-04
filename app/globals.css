@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #0a0e14;
+  --color-panel: #0f1620;
+  --color-panel-2: #141d29;
+  --color-edge: #223044;
+  --color-edge-soft: #1a2431;
+  --color-fog: #8ea3ba;
+  --color-fog-dim: #62748a;
+  --color-paper: #e8eff8;
+  --color-accent: #7cb2ff;
+  --color-accent-soft: #1b2c45;
+  --color-danger: #ff7d7d;
+  --color-ok: #57d9a3;
+  --font-sans: "Inter", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", ui-monospace, SFMono-Regular, monospace;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(124, 178, 255, 0.08), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, rgba(167, 139, 250, 0.06), transparent 55%),
+    var(--color-ink);
+  color: var(--color-paper);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgba(124, 178, 255, 0.28);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2a394d transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #2a394d;
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #3a4d66;
+  background-clip: content-box;
+}
+
+mark {
+  background: rgba(124, 178, 255, 0.28);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+mark[data-current="true"] {
+  background: var(--color-accent);
+  color: #07101c;
+}
+
+input,
+textarea,
+select,
+button {
+  font: inherit;
+}
+
+textarea {
+  field-sizing: content;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

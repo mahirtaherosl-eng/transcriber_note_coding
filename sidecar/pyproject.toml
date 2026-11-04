@@ -1,0 +1,25 @@
+[project]
+name = "transcriber-sidecar"
+version = "0.1.0"
+description = "Local Qwen3-ASR + pyannote transcription sidecar"
+requires-python = ">=3.11"
+dependencies = [
+  "torch",
+  "torchaudio",
+  "qwen-asr==0.0.6",
+  "pyannote.audio==4.0.7",
+  "fastapi",
+  "uvicorn[standard]",
+  "soundfile",
+  "numpy",
+  "python-multipart",
+]
+
+[[tool.uv.index]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch" }
+torchaudio = { index = "pytorch" }

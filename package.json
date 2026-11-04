@@ -1,0 +1,39 @@
+{
+  "name": "transcriber-note",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -H 127.0.0.1",
+    "build": "next build",
+    "start": "next start -H 127.0.0.1",
+    "test": "vitest run",
+    "eval": "tsx scripts/eval-providers.ts",
+    "fixture": "tsx scripts/make-fixture.ts",
+    "sidecar": "uv run --project sidecar uvicorn server:app --app-dir sidecar --host 127.0.0.1 --port 8001",
+    "sidecar:check": "uv run --project sidecar python sidecar/asr_check.py"
+  },
+  "dependencies": {
+    "archiver": "^7.0.1",
+    "ffmpeg-static": "^5.3.0",
+    "ffprobe-static": "^3.1.0",
+    "lucide-react": "^1.66.0",
+    "next": "^16.4.3",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "undici": "^8.12.3",
+    "zod": "^4.6.7",
+    "zustand": "^5.0.16"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/archiver": "^6.0.3",
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.5"
+  }
+}
