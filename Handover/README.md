@@ -3,8 +3,8 @@
 **Audience:** future developers and AI agents. The user-facing guide is the repository
 [README](../README.md); this folder records the engineering state, decisions, and traps.
 
-**Last updated:** 2026-11-04 · **Git:** clean at `3f1363a` (`openrouter option`) · **Tests:** 28
-passing · **Build:** passing · **Default engine:** MAI-Transcribe-2 via OpenRouter.
+**Last updated:** 2026-11-04 · **Git:** `0a95537` plus the re-transcribe work in the working tree ·
+**Tests:** 35 passing · **Build:** passing · **Default engine:** MAI-Transcribe-2 via OpenRouter.
 
 ## What this app is
 
@@ -42,7 +42,8 @@ Open <http://127.0.0.1:3000>. `npm run fixture` creates a local demo conversatio
 | Local Qwen3-ASR 1.7B + pyannote | **Experimental / failed quality gate** |
 | Soniox and Azure direct adapters | **Stubs** — throw a clear error |
 | Search, speaker filter, editing, export/import, waveform sync | **Verified** |
-| Re-transcribe with another language, variants, cross-file search | **Not built** |
+| Re-transcribe with another engine/language + version history (download/restore) | **Verified** |
+| Cross-file search, version diffing | **Not built** |
 
 Latest verified artifact on this machine: job `5f8f4dd3-d7f5-42da-bb03-5961a2c88799`, provider
 `openrouter`, model `microsoft/mai-transcribe-2`, 50 segments, 3 speakers, detected language

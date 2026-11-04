@@ -37,7 +37,7 @@ Provider resolution in [`lib/providers/index.ts`](../lib/providers/index.ts): ex
 | `npm run dev` | Next dev on `127.0.0.1:3000` |
 | `npm run build` | Production build (stop dev first; both share `.next`) |
 | `npm start` | Serve the production build on `127.0.0.1:3000` |
-| `npm test` | Vitest: 28 tests (segmentation, search, Range parsing) |
+| `npm test` | Vitest: 35 tests (segmentation, search, Range parsing, history helpers) |
 | `npx tsc --noEmit` | Type-check |
 | `npm run fixture` | Create a 45 s synthetic demo conversation, no API call |
 | `npm run eval -- <audio> --providers=openrouter --language=auto` | Run provider(s) directly and print text/latency/metrics |
@@ -68,6 +68,9 @@ shows the current default engine; the model/engine can be changed in the picker.
    edit, export JSON/SRT, re-import.
 7. A 118 s MAI run should be roughly 4–5 s, cost ~$0.003, and produce 2–3 speakers with word
    timestamps.
+8. Re-transcribe that conversation with the mock engine (free): during the run the old transcript is
+   read-only with a progress banner; after it finishes, the previous version appears under
+   **Versions**, can be downloaded, and can be restored (the swap is reversible).
 
 ## Troubleshooting
 
@@ -79,6 +82,8 @@ shows the current default engine; the model/engine can be changed in the picker.
 | OpenRouter requests hang or time out | Upstream timeout is 60 s and the cap is 25 MB. Split long audio or use Scribe for long meetings. |
 | App still uses the old engine after editing `.env.local` | Restart `npm run dev`. `STT_PROVIDER` wins over key detection. |
 | Job shows **interrupted** | The server restarted mid-job. Click Retry; jobs are deliberately not auto-resumed to avoid double billing. |
+| Restore is disabled | The job is queued/processing. Wait for it to finish or cancel it; restore is refused while a run owns `transcript.json`. |
+| Re-transcribe fails with “refusing to overwrite” | `transcript.json` is unreadable. Export or delete the conversation before re-running; the app will not silently destroy it. |
 | “Segment … overlaps or is out of order” | Should be prevented by `normalizeSegmentBounds()` in `lib/transcript/segment.ts`. If a new provider reintroduces it, check its timestamps and keep the normalizer. |
 | Qwen sidecar “not running” | Start `npm run sidecar`; the default URL is `127.0.0.1:8001`. Sidecar requires the Python venv and, for diarization, pyannote + `HF_TOKEN`. |
 | Qwen sidecar pyannote error | `pyannote.audio` is not installed in `sidecar/.venv`; accept the model terms on Hugging Face and set `HF_TOKEN`. This path is experimental and was not completed. |
@@ -108,9 +113,12 @@ for 118 s). Read [providers.md](providers.md) before spending more time here.
   balance for audio requests.
 - Scribe v2: ~$0.22/audio-hour.
 - Local Qwen: compute only, but ~16× realtime on CPU.
-- Audio is sent only to the selected provider. `.data/` (audio, transcripts, raw responses) and
-  `.env.local` are local and gitignored. The app binds `127.0.0.1` and has no auth; do not expose it.
-- Delete a conversation from the home page to remove its audio, transcript, raw response, and peaks.
+- Audio is sent only to the selected provider. `.data/` (audio, transcripts, raw responses, history)
+  and `.env.local` are local and gitignored. The app binds `127.0.0.1` and has no auth; do not expose it.
+- Each successful re-run archives one transcript JSON under `.data/library/{id}/history/`; versions
+  are kept until the conversation is deleted. `raw.json` is overwritten per run and is not versioned.
+- Delete a conversation from the home page to remove its audio, transcript, raw response, peaks, and
+  all archived versions.
 
 ## Git
 

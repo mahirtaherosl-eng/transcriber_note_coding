@@ -28,9 +28,10 @@ POST /api/transcriptions?fileName=…&language=…&provider=…
   ▼
 Disk-backed job queue (lib/jobs/queue.ts)
   │  provider.transcribe()  (OpenRouter MAI, Scribe, Gemini, mock, …)
-  │  save raw provider response → raw.json
-  │  buildTranscript() → segmentTokens() → transcript.json
-  │  generatePeaks() → peaks.json
+  │  buildTranscript(..., run time) → segmentTokens()
+  │  archive current transcript → history/{version}.transcript.json + .meta.json
+  │  raw provider response → raw.json
+  │  transcript.json + peaks.json
   ▼
 Explorer (/c/{id})
   ├─ GET /api/transcriptions/{id}            (status while running)
@@ -38,6 +39,10 @@ Explorer (/c/{id})
   ├─ GET /api/audio/{id}                     (Range streaming for playback)
   ├─ GET /api/peaks/{id}                     (precomputed waveform)
   ├─ PATCH …/transcript                      (inline edits / speaker renames)
+  ├─ POST …/retranscribe                     (reuse audio, change engine/language)
+  ├─ GET …/history                           (versions)
+  ├─ GET …/history/{version}                 (download a version)
+  ├─ POST …/history/{version}?action=restore (swap current transcript, reversible)
   └─ GET /api/export/{id}?format=json|srt|vtt|txt|zip
 ```
 
@@ -64,8 +69,9 @@ components/
   explorer/Waveform.tsx                 canvas peaks/segments/playhead
   explorer/usePlaybackSync.ts           audio time → store, keyboard shortcuts
 lib/
-  providers/                            one adapter per engine; registry + resolution
+  providers/                            one adapter per engine; registry + resolution + client catalog
   transcript/                           schema, segmentation, build, search, export, lookup
+  history.ts                            transcript version archive (archive/list/read)
   jobs/                                 disk job records + queue
   audio/                                ffmpeg paths, probe, peaks, Range parsing
   client/                               fetch helpers + zustand store
@@ -81,10 +87,17 @@ tests/                                  segment/search/range unit tests
 .data/library/{id}/
   job.json          status, language, provider/model, progress, error, heartbeat
   original.{ext}    original audio (never modified)
-  transcript.json   canonical portable transcript
-  raw.json          unmodified provider response (for reprocessing/debugging)
+  transcript.json   canonical portable transcript (current version)
+  raw.json          unmodified response of the current run only (not versioned)
   peaks.json        interleaved min/max waveform buckets
+  history/
+    {version}.transcript.json   archived transcript (full TranscriptFile)
+    {version}.meta.json         provider/model/language, timestamps, counts, digest
 ```
+
+`version` is `YYYYMMDDThhmmssZ-<6 hex>`, so versions sort lexicographically by archive time.
+History is created at the overwrite point, not at request time, so failed runs never lose the current
+transcript. See “Version history” below.
 
 `job.status` is one of `queued | processing | completed | failed | interrupted | cancelled`.
 `interrupted` is deliberate: a server restart must not silently retry and double-bill. Retry is an
@@ -96,6 +109,8 @@ first access.
 Defined in [`lib/transcript/schema.ts`](../lib/transcript/schema.ts); validated on every read/write.
 
 - `schemaVersion: 1`
+- `createdAt` is the time the run that produced this transcript finished, so re-runs get a new
+  timestamp (the original upload time stays on `job.createdAt`).
 - `source` includes the audio SHA-256 so a re-attached file can be checked against the transcript.
 - `speakers[]` stores display names and colors, so renames survive export/import.
 - `segments[]` are sorted, half-open, non-overlapping; each has `startMs`, `endMs`, `speakerId`,
@@ -108,6 +123,31 @@ timestamps are floats; converting them to integer milliseconds can invert adjace
 1 ms. `normalizeSegmentBounds()` trims the earlier segment's end to the next start, renumbers, and
 guarantees ordered non-overlapping output. Do not remove this; the original production failure was
 `Segment seg_0013 overlaps or is out of order`.
+
+## Version history
+
+`POST /api/transcriptions/{id}/retranscribe` queues a run with a new provider/language but reuses the
+stored audio. It does **not** archive anything itself. `runJob` builds the new transcript, then calls
+`archiveCurrentTranscript(id, "rerun")` immediately before overwriting `transcript.json`:
+
+- Archiving at the overwrite point covers every path that can replace a transcript (including a retry
+  of a completed job) and captures edits made up to the last moment.
+- If archiving throws, the job fails and the current transcript is untouched.
+- Duplicates are skipped by comparing a sha256 digest (of the zod-parsed transcript) against every
+  archived version, so restores and repeated runs do not pile up identical copies.
+- A corrupt `transcript.json` is never silently overwritten; the run fails instead.
+
+While a run is in progress the previous transcript stays current and the explorer shows it read-only
+with a progress banner. `PATCH …/transcript` returns 409 for `queued`/`processing` jobs, so an edit
+cannot race the write. On completion the new transcript replaces it.
+
+Restoring an archived version archives the current transcript (`reason: "restore"`) and then copies
+the chosen version into `transcript.json`, so the swap is reversible. The job's provider, model,
+language and duration are updated to match. A warning is returned when the archived transcript's
+audio SHA-256 differs from the currently attached audio.
+
+`raw.json` belongs to the current transcript only: it is overwritten on each run and is not archived
+or restored with a version.
 
 ## Provider contract
 

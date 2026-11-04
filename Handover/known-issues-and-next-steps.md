@@ -24,20 +24,17 @@ in the trilingual meeting, so a mixed transcript is expected.
 **Files:** [`lib/providers/openrouter.ts`](../lib/providers/openrouter.ts),
 [`lib/providers/gemini.ts`](../lib/providers/gemini.ts), [`lib/languages.ts`](../lib/languages.ts).
 
-## P1 — No re-transcribe or transcript-variant workflow
+## Done — Re-transcribe and transcript history (2026-11-04)
 
-Today the provider and language are fixed at upload. Trying Cantonese after an auto run requires
-re-uploading the file; there is no way to compare engine versions or preserve the previous
-transcript.
+Shipped: `POST …/retranscribe`, archive-at-overwrite in `runJob`, `GET …/history`,
+`GET …/history/{version}` (download), `POST …/history/{version}?action=restore`, a re-transcribe and
+versions menu in the header, read-only display of the previous transcript during a run, and a 409 on
+`PATCH …/transcript` while queued/processing. Delete a conversation to remove its history.
 
-**Suggested implementation:**
-- `POST /api/transcriptions/{id}/retranscribe` with `{ language, provider }`.
-- Archive the current `transcript.json` under `history/` (or store multiple transcript versions),
-  update the job language/provider, enqueue a new run reusing the stored audio.
-- Add a menu in [`components/explorer/EditorHeader.tsx`](../components/explorer/EditorHeader.tsx) and
-  a history list with restore/download.
-- Reuse [`lib/jobs/queue.ts`](../lib/jobs/queue.ts), [`lib/storage.ts`](../lib/storage.ts), and the
-  existing retry endpoint pattern in `app/api/transcriptions/[id]/route.ts`.
+Known gaps in this area:
+- `raw.json` is overwritten per run and is neither archived nor restored with a version.
+- History is not included in the zip export and there is no version diffing or pruning.
+- The re-transcribe menu cannot pass provider-specific options such as Azure `phraseList`.
 
 ## P1 — Long-meeting limits
 
@@ -106,9 +103,8 @@ Do not resume this without a new model or hardware. Facts:
 ## Suggested next actions
 
 1. Test native Google Gemini on the same 118 s file if a `GEMINI_API_KEY` is available; compare
-   Cantonese particles and speaker labels against MAI.
-2. Build the re-transcribe endpoint + history menu so language/engine comparisons do not require
-   re-uploading.
-3. Add provider parser tests and an upload/status integration test.
-4. Decide the long-meeting strategy (Scribe vs chunked MAI) and enforce it in the upload UI.
-5. Only after those, revisit Cantonese-specific models or local inference.
+   Cantonese particles and speaker labels against MAI. Re-transcribe now makes this a one-click
+   comparison on an existing conversation.
+2. Add provider parser tests and an upload/status integration test.
+3. Decide the long-meeting strategy (Scribe vs chunked MAI) and enforce it in the upload UI.
+4. Only after those, revisit Cantonese-specific models or local inference.

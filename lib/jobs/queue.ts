@@ -1,5 +1,6 @@
 import { generatePeaks } from "@/lib/audio/peaks";
 import { probeAudio } from "@/lib/audio/probe";
+import { archiveCurrentTranscript } from "@/lib/history";
 import { getProvider } from "@/lib/providers";
 import { buildTranscript } from "@/lib/transcript/build";
 import { patchJob, readJob } from "@/lib/jobs/store";
@@ -127,10 +128,17 @@ async function runJob(id: string): Promise<void> {
     // The user may have deleted the transcription while the provider was working.
     if (!(await readJob(id))) return;
 
-    await atomicWriteJson(rawPath(id), result.raw);
-
     const refreshed = (await readJob(id)) ?? { ...job, durationMs };
-    const transcript = buildTranscript({ ...refreshed, durationMs }, result);
+    const transcript = buildTranscript(
+      { ...refreshed, durationMs },
+      result,
+      new Date().toISOString(),
+    );
+
+    // Keep the previous transcript as a restorable version before overwriting it.
+    // A failure here fails the job while leaving the current transcript untouched.
+    await archiveCurrentTranscript(id, "rerun");
+    await atomicWriteJson(rawPath(id), result.raw);
     await writeTranscript(transcript);
 
     // Best effort: the peaks route can regenerate this on demand if it fails.

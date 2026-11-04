@@ -11,7 +11,7 @@ type Props = {
   selected: string[];
   onToggle: (key: string) => void;
   onClear: () => void;
-  onRenameSpeaker: (speaker: Speaker) => void;
+  onRenameSpeaker?: (speaker: Speaker) => void;
 };
 
 function Chip({
@@ -94,7 +94,7 @@ export default function SpeakerFilter({
           count={counts.get(speaker.id) ?? 0}
           active={selected.includes(speaker.id)}
           onClick={() => onToggle(speaker.id)}
-          onRename={() => onRenameSpeaker(speaker)}
+          onRename={onRenameSpeaker ? () => onRenameSpeaker(speaker) : undefined}
         />
       ))}
 

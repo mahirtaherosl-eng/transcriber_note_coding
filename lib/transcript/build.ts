@@ -2,7 +2,11 @@ import { SCHEMA_VERSION, type Job, type TranscriptFile } from "@/lib/transcript/
 import { segmentTokens } from "@/lib/transcript/segment";
 import type { ProviderResult } from "@/lib/providers/types";
 
-export function buildTranscript(job: Job, result: ProviderResult): TranscriptFile {
+export function buildTranscript(
+  job: Job,
+  result: ProviderResult,
+  createdAt: string = job.createdAt,
+): TranscriptFile {
   const durationMs = job.durationMs ?? 0;
   const { segments, speakers } = segmentTokens(result.tokens, { durationMs });
 
@@ -14,7 +18,7 @@ export function buildTranscript(job: Job, result: ProviderResult): TranscriptFil
     schemaVersion: SCHEMA_VERSION,
     id: job.id,
     title: job.title,
-    createdAt: job.createdAt,
+    createdAt,
     source: {
       fileName: job.fileName,
       mimeType: job.mimeType,

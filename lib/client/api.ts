@@ -1,4 +1,4 @@
-import type { Job, TranscriptFile } from "@/lib/transcript/schema";
+import type { HistoryEntry, Job, TranscriptFile } from "@/lib/transcript/schema";
 
 export type JobListResponse = {
   jobs: Job[];
@@ -45,6 +45,68 @@ export async function getTranscript(id: string): Promise<TranscriptFile> {
     { cache: "no-store" },
   );
   return data.transcript;
+}
+
+/** Returns null only when the transcript does not exist yet; other failures still throw. */
+export async function getTranscriptIfAvailable(id: string): Promise<TranscriptFile | null> {
+  const response = await fetch(`/api/transcriptions/${encodeURIComponent(id)}/transcript`, {
+    cache: "no-store",
+  });
+  if (response.status === 404) return null;
+
+  let payload: unknown = null;
+  try {
+    payload = await response.json();
+  } catch {
+    // ignore non-JSON error bodies
+  }
+
+  if (!response.ok) {
+    const message =
+      payload && typeof payload === "object" && "error" in payload
+        ? String((payload as { error: unknown }).error)
+        : `Request failed (${response.status})`;
+    throw new Error(message);
+  }
+
+  return (payload as { transcript: TranscriptFile }).transcript;
+}
+
+export async function retranscribe(
+  id: string,
+  payload: { provider?: string; language?: string; numSpeakers?: number | null },
+): Promise<Job> {
+  const data = await fetchJson<{ job: Job }>(
+    `/api/transcriptions/${encodeURIComponent(id)}/retranscribe`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+  return data.job;
+}
+
+export async function listHistory(id: string): Promise<HistoryEntry[]> {
+  const data = await fetchJson<{ entries: HistoryEntry[] }>(
+    `/api/transcriptions/${encodeURIComponent(id)}/history`,
+    { cache: "no-store" },
+  );
+  return data.entries;
+}
+
+export async function restoreHistory(
+  id: string,
+  version: string,
+): Promise<{ transcript: TranscriptFile; job: Job; warning?: string }> {
+  return fetchJson<{ transcript: TranscriptFile; job: Job; warning?: string }>(
+    `/api/transcriptions/${encodeURIComponent(id)}/history/${encodeURIComponent(version)}?action=restore`,
+    { method: "POST" },
+  );
+}
+
+export function historyDownloadUrl(id: string, version: string): string {
+  return `/api/transcriptions/${encodeURIComponent(id)}/history/${encodeURIComponent(version)}`;
 }
 
 type UploadOptions = {

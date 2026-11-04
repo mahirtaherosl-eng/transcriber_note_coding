@@ -14,9 +14,10 @@ type Props = {
   transcript: TranscriptFile;
   activeSegmentId: string | null;
   selectedSpeakers: string[];
+  readOnly?: boolean;
   onToggleSpeaker: (key: string) => void;
   onClearSpeakers: () => void;
-  onRenameSpeaker: (speakerId: string, name: string) => void;
+  onRenameSpeaker?: (speakerId: string, name: string) => void;
   onSeek: (ms: number) => void;
   onEditSegment: (
     segmentId: string,
@@ -35,6 +36,7 @@ export default function TranscriptPane({
   transcript,
   activeSegmentId,
   selectedSpeakers,
+  readOnly,
   onToggleSpeaker,
   onClearSpeakers,
   onRenameSpeaker,
@@ -94,6 +96,11 @@ export default function TranscriptPane({
     setCurrentMatch(0);
   }, [query, selectedSpeakers]);
 
+  // Segment ids repeat across transcript versions, so never carry an edit across a swap.
+  useEffect(() => {
+    setEditingId(null);
+  }, [transcript.id, transcript.createdAt]);
+
   useEffect(() => {
     if (currentMatch >= search.flat.length) {
       setCurrentMatch(0);
@@ -151,9 +158,13 @@ export default function TranscriptPane({
     [currentMatch, scrollToSegment, search.flat],
   );
 
-  const handleStartEdit = useCallback((segmentId: string) => {
-    setEditingId(segmentId);
-  }, []);
+  const handleStartEdit = useCallback(
+    (segmentId: string) => {
+      if (readOnly) return;
+      setEditingId(segmentId);
+    },
+    [readOnly],
+  );
 
   const handleCancelEdit = useCallback(() => {
     setEditingId(null);
@@ -176,13 +187,14 @@ export default function TranscriptPane({
 
   const handleRenameSpeaker = useCallback(
     (speaker: Speaker) => {
+      if (readOnly || !onRenameSpeaker) return;
       const name = window.prompt("Speaker name", speaker.name);
       if (name === null) return;
       const trimmed = name.trim();
       if (!trimmed || trimmed === speaker.name) return;
       onRenameSpeaker(speaker.id, trimmed);
     },
-    [onRenameSpeaker],
+    [onRenameSpeaker, readOnly],
   );
 
   const current = search.flat[currentMatch];
@@ -208,10 +220,12 @@ export default function TranscriptPane({
           selected={selectedSpeakers}
           onToggle={onToggleSpeaker}
           onClear={onClearSpeakers}
-          onRenameSpeaker={handleRenameSpeaker}
+          onRenameSpeaker={readOnly ? undefined : handleRenameSpeaker}
         />
         <div className="text-[10px] text-fog-dim">
-          Ctrl/Cmd+click a line to jump · right-click to edit · Space to play
+          {readOnly
+            ? "Ctrl/Cmd+click a line to jump · Space to play · read-only while re-transcribing"
+            : "Ctrl/Cmd+click a line to jump · right-click to edit · Space to play"}
         </div>
       </div>
 
@@ -241,6 +255,7 @@ export default function TranscriptPane({
                     current?.segmentId === segment.id ? current.start : undefined
                   }
                   editing={editingId === segment.id}
+                  readOnly={readOnly}
                   onSeek={onSeek}
                   onStartEdit={handleStartEdit}
                   onCancelEdit={handleCancelEdit}

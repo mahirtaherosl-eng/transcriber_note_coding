@@ -15,6 +15,9 @@ import {
   cancelTranscription,
   getJob,
   getTranscript,
+  getTranscriptIfAvailable,
+  restoreHistory,
+  retranscribe,
   retryTranscription,
   saveEdits,
 } from "@/lib/client/api";
@@ -23,6 +26,8 @@ import { findSegmentAtTime } from "@/lib/transcript/lookup";
 import type { Job } from "@/lib/transcript/schema";
 import AudioPane from "@/components/explorer/AudioPane";
 import EditorHeader from "@/components/explorer/EditorHeader";
+import JobStatusBanner from "@/components/explorer/JobStatusBanner";
+import type { RetranscribeOptions } from "@/components/explorer/RetranscribeMenu";
 import TranscriptPane from "@/components/explorer/TranscriptPane";
 import { usePlaybackSync } from "@/components/explorer/usePlaybackSync";
 
@@ -47,6 +52,7 @@ export default function Explorer({ id }: { id: string }) {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const durationMs = transcript?.source.durationMs || job?.durationMs || 0;
+  const canEdit = job?.status === "completed";
   const controls = usePlaybackSync(audioRef, durationMs);
 
   const [selectedSpeakers, setSelectedSpeakers] = useState<string[]>([]);
@@ -67,9 +73,11 @@ export default function Explorer({ id }: { id: string }) {
       try {
         const nextJob = await getJob(id);
         setJob(nextJob);
-        if (nextJob.status === "completed") {
-          const nextTranscript = await getTranscript(id);
-          setTranscript(nextTranscript);
+        // Refetch on completion, and on first load so a reload mid-run still shows the
+        // previous transcript. Avoid replacing it on every poll while it is unchanged.
+        const hasTranscript = Boolean(useExplorerStore.getState().transcript);
+        if (nextJob.status === "completed" || !hasTranscript) {
+          setTranscript(await getTranscriptIfAvailable(id));
         }
         setError(null);
       } catch (loadError) {
@@ -88,6 +96,18 @@ export default function Explorer({ id }: { id: string }) {
     setSelectedSpeakers([]);
     undoStack.current = [];
   }, [id, reset]);
+
+  // Segment ids repeat across versions, so never carry edits or filters into a swapped transcript.
+  useEffect(() => {
+    undoStack.current = [];
+    setSelectedSpeakers([]);
+  }, [transcript?.id, transcript?.createdAt]);
+
+  const requireEditable = useCallback(() => {
+    if (job?.status === "completed") return true;
+    showToast("Editing is disabled while this transcription is running.", "warn");
+    return false;
+  }, [job?.status, showToast]);
 
   useEffect(() => {
     void load();
@@ -123,6 +143,7 @@ export default function Explorer({ id }: { id: string }) {
 
   const handleEditSegment = useCallback(
     async (segmentId: string, patch: { text?: string; speakerId?: string | null }) => {
+      if (!requireEditable()) return;
       const current = useExplorerStore.getState().transcript;
       if (!current) return;
       const before = current.segments.find((segment) => segment.id === segmentId);
@@ -155,10 +176,11 @@ export default function Explorer({ id }: { id: string }) {
         );
       }
     },
-    [id, patchLocal, replaceTranscript, showToast],
+    [id, patchLocal, replaceTranscript, requireEditable, showToast],
   );
 
   const handleUndo = useCallback(async () => {
+    if (!requireEditable()) return;
     const entry = undoStack.current.pop();
     if (!entry) {
       showToast("Nothing to undo.", "warn");
@@ -174,7 +196,7 @@ export default function Explorer({ id }: { id: string }) {
       undoStack.current.push(entry);
       showToast(undoError instanceof Error ? undoError.message : "Could not undo.", "error");
     }
-  }, [id, replaceTranscript, showToast]);
+  }, [id, replaceTranscript, requireEditable, showToast]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -190,6 +212,7 @@ export default function Explorer({ id }: { id: string }) {
 
   const handleRenameSpeaker = useCallback(
     async (speakerId: string, name: string) => {
+      if (!requireEditable()) return;
       const current = useExplorerStore.getState().transcript;
       if (!current) return;
       const before = current.speakers;
@@ -212,7 +235,7 @@ export default function Explorer({ id }: { id: string }) {
         );
       }
     },
-    [id, replaceTranscript, showToast],
+    [id, replaceTranscript, requireEditable, showToast],
   );
 
   const handleAttachAudio = useCallback(
@@ -258,6 +281,28 @@ export default function Explorer({ id }: { id: string }) {
     }
   }, [id, load, showToast]);
 
+  const handleRetranscribe = useCallback(
+    async (options: RetranscribeOptions) => {
+      await retranscribe(id, options);
+      await load(true);
+      showToast("Re-transcription started.");
+    },
+    [id, load, showToast],
+  );
+
+  const handleRestore = useCallback(
+    async (version: string) => {
+      const result = await restoreHistory(id, version);
+      setTranscript(result.transcript);
+      setJob(result.job);
+      showToast(
+        result.warning ?? "Transcript version restored.",
+        result.warning ? "warn" : "ok",
+      );
+    },
+    [id, setJob, setTranscript, showToast],
+  );
+
   const toggleSpeaker = useCallback((key: string) => {
     setSelectedSpeakers((previous) =>
       previous.includes(key) ? previous.filter((item) => item !== key) : [...previous, key],
@@ -274,13 +319,24 @@ export default function Explorer({ id }: { id: string }) {
 
       {transcript && job ? (
         <>
-          <EditorHeader id={id} transcript={transcript} durationMs={durationMs} />
+          <EditorHeader
+            id={id}
+            transcript={transcript}
+            durationMs={durationMs}
+            job={job}
+            onRetranscribe={handleRetranscribe}
+            onRestore={handleRestore}
+          />
+          {!canEdit && (
+            <JobStatusBanner job={job} onCancel={handleCancel} onRetry={handleRetry} />
+          )}
           <main className="flex min-h-0 flex-1 flex-col lg:flex-row">
             <div className="min-h-0 flex-1 border-b border-edge-soft lg:border-b-0 lg:border-r">
               <TranscriptPane
                 transcript={transcript}
                 activeSegmentId={activeSegmentId}
                 selectedSpeakers={selectedSpeakers}
+                readOnly={!canEdit}
                 onToggleSpeaker={toggleSpeaker}
                 onClearSpeakers={() => setSelectedSpeakers([])}
                 onRenameSpeaker={handleRenameSpeaker}

@@ -24,6 +24,7 @@ import {
 } from "@/lib/client/api";
 import { formatClock } from "@/lib/format";
 import { LANGUAGES, languageLabel } from "@/lib/languages";
+import { PROVIDER_OPTIONS, providerLabel } from "@/lib/providers/catalog";
 import type { Job } from "@/lib/transcript/schema";
 
 const ACCEPTED_EXTENSIONS = [
@@ -304,24 +305,12 @@ export default function HomePage() {
               onChange={(event) => setProvider(event.target.value)}
               className="w-full rounded-lg border border-edge bg-panel-2 px-3 py-2 text-sm text-paper outline-none focus:border-accent"
             >
-              <option value="auto">
-                Auto (
-                {defaultProvider === "elevenlabs"
-                  ? "Scribe v2"
-                  : defaultProvider === "gemini"
-                    ? "Gemini 3.5 Transcribe"
-                    : defaultProvider === "openrouter"
-                      ? "MAI-Transcribe 2 (OpenRouter)"
-                      : defaultProvider === "qwen"
-                        ? "Qwen3-ASR (local)"
-                        : "offline mock"}
-                )
-              </option>
-              <option value="gemini">Gemini 3.5 Transcribe</option>
-              <option value="openrouter">MAI-Transcribe 2 (OpenRouter)</option>
-              <option value="qwen">Qwen3-ASR 1.7B + pyannote (local)</option>
-              <option value="elevenlabs">ElevenLabs Scribe v2</option>
-              <option value="mock">Offline mock (no API calls)</option>
+              <option value="auto">Auto ({providerLabel(defaultProvider)})</option>
+              {PROVIDER_OPTIONS.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </label>
         </div>

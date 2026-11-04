@@ -80,14 +80,18 @@ export async function writeJob(job: Job): Promise<void> {
   await atomicWriteJson(jobPath(job.id), JobSchema.parse(job));
 }
 
-export async function readTranscript(id: string): Promise<TranscriptFile | null> {
+export async function readTranscriptFile(filePath: string): Promise<TranscriptFile | null> {
   try {
-    const raw = await readJson<unknown>(transcriptPath(id));
+    const raw = await readJson<unknown>(filePath);
     const parsed = TranscriptSchema.safeParse(raw);
     return parsed.success ? parsed.data : null;
   } catch {
     return null;
   }
+}
+
+export async function readTranscript(id: string): Promise<TranscriptFile | null> {
+  return readTranscriptFile(transcriptPath(id));
 }
 
 export async function writeTranscript(transcript: TranscriptFile): Promise<void> {

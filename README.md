@@ -94,6 +94,9 @@ recommended engine for trilingual Cantonese/Mandarin/English audio.
 - Click a timestamp, or **Ctrl/Cmd+click a line**, to jump the audio there and play.
 - Drag the waveform or use the scrubber; the transcript follows and highlights the current line.
 - Playback speed 0.5×–3× (pitch-preserving), jump-to-time input, follow-playback toggle.
+- **Re-transcribe with another engine or language** from the header. The previous transcript stays
+  readable (read-only) while the run proceeds and is kept under **Versions**, where any version can
+  be downloaded or restored. Restoring archives the current version first, so it is reversible.
 - **Right-click a line to edit it in place.** Enter saves, Shift+Enter adds a newline, Esc cancels.
   IME composition is respected, so committing a Cantonese or Bengali candidate with Enter does not
   end editing. Edits persist to the transcript file and are included in every export.
@@ -152,6 +155,7 @@ transcription from the library to remove its audio, peaks, raw response, and tra
 ## Limitations
 
 - Search is per-document; there is no cross-file index.
+- Version history is kept per conversation under `.data/` and is not included in the zip export.
 - No speaker-merging or segment split/merge yet (fixing a mis-diarized line is supported via the
   speaker dropdown in edit mode).
 - Very large WAV/AIFF files are uploaded as-is rather than transcoded to FLAC.

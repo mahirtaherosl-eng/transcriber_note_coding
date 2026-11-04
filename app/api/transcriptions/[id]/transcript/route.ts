@@ -1,4 +1,5 @@
 import { EditRequestSchema } from "@/lib/transcript/schema";
+import { readJob } from "@/lib/jobs/store";
 import { assertSafeId, readTranscript, writeTranscript } from "@/lib/storage";
 import { readJsonBody } from "@/lib/server/http";
 
@@ -26,6 +27,14 @@ export async function PATCH(request: Request, context: RouteContext) {
     assertSafeId(id);
   } catch {
     return Response.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const job = await readJob(id);
+  if (job && (job.status === "queued" || job.status === "processing")) {
+    return Response.json(
+      { error: "Editing is disabled while this transcription is running." },
+      { status: 409 },
+    );
   }
 
   const transcript = await readTranscript(id);

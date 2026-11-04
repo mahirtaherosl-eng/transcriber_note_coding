@@ -2,6 +2,9 @@ import { z } from "zod";
 
 export const SCHEMA_VERSION = 1;
 
+/** History version ids sort lexicographically by archive time. */
+export const HISTORY_VERSION_PATTERN = /^\d{8}T\d{6}Z-[0-9a-f]{6}$/;
+
 /** Fixed palette used for speaker pills and waveform bands. */
 export const SPEAKER_COLORS = [
   "#60a5fa",
@@ -137,6 +140,32 @@ export const JobSchema = z.object({
 
 export type JobStatus = z.infer<typeof JobStatusSchema>;
 export type Job = z.infer<typeof JobSchema>;
+
+export const HistoryReasonSchema = z.enum(["rerun", "restore"]);
+export type HistoryReason = z.infer<typeof HistoryReasonSchema>;
+
+export const HistoryMetaSchema = z.object({
+  version: z.string().regex(HISTORY_VERSION_PATTERN),
+  archivedAt: z.string().min(1),
+  transcribedAt: z.string().min(1),
+  reason: HistoryReasonSchema,
+  provider: z.string(),
+  model: z.string(),
+  requestedLanguage: z.string(),
+  detectedLanguage: z.string().optional(),
+  segmentCount: z.number().int().nonnegative(),
+  speakerCount: z.number().int().nonnegative(),
+  durationMs: z.number().int().nonnegative(),
+  sha256: z.string().min(1),
+});
+export type HistoryEntry = z.infer<typeof HistoryMetaSchema>;
+
+export const RetranscribeRequestSchema = z.object({
+  provider: z.string().min(1).optional(),
+  language: z.string().min(1).optional(),
+  numSpeakers: z.number().int().min(1).max(32).nullable().optional(),
+});
+export type RetranscribeRequest = z.infer<typeof RetranscribeRequestSchema>;
 
 export const EditRequestSchema = z.object({
   segments: z

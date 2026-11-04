@@ -4,12 +4,17 @@ import Link from "next/link";
 import { ChevronLeft, Clock, Download, FileJson, FileText, Subtitles } from "lucide-react";
 import { formatClock } from "@/lib/format";
 import { languageLabel } from "@/lib/languages";
-import type { TranscriptFile } from "@/lib/transcript/schema";
+import type { Job, TranscriptFile } from "@/lib/transcript/schema";
+import HistoryMenu from "@/components/explorer/HistoryMenu";
+import RetranscribeMenu, { type RetranscribeOptions } from "@/components/explorer/RetranscribeMenu";
 
 type Props = {
   id: string;
   transcript: TranscriptFile;
   durationMs: number;
+  job: Job;
+  onRetranscribe: (options: RetranscribeOptions) => Promise<void>;
+  onRestore: (version: string) => Promise<void>;
 };
 
 const EXPORTS = [
@@ -20,7 +25,14 @@ const EXPORTS = [
   { format: "zip", label: "Bundle with audio", icon: Download, hint: "Archive everything" },
 ];
 
-export default function EditorHeader({ id, transcript, durationMs }: Props) {
+export default function EditorHeader({
+  id,
+  transcript,
+  durationMs,
+  job,
+  onRetranscribe,
+  onRestore,
+}: Props) {
   const editedCount = transcript.segments.filter((segment) => segment.edited).length;
   const language = languageLabel(
     transcript.transcription.detectedLanguage ?? transcript.transcription.requestedLanguage,
@@ -57,6 +69,13 @@ export default function EditorHeader({ id, transcript, durationMs }: Props) {
           )}
         </div>
       </div>
+
+      <RetranscribeMenu
+        job={job}
+        disabled={job.status === "queued" || job.status === "processing"}
+        onStart={onRetranscribe}
+      />
+      <HistoryMenu id={id} job={job} onRestore={onRestore} />
 
       <details className="relative">
         <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-md border border-edge px-2.5 py-1 text-xs text-fog transition hover:border-accent/50 hover:text-paper [&::-webkit-details-marker]:hidden">

@@ -15,6 +15,7 @@ type Props = {
   ranges: MatchRange[];
   currentMatchStart?: number;
   editing: boolean;
+  readOnly?: boolean;
   onSeek: (ms: number) => void;
   onStartEdit: (segmentId: string) => void;
   onCancelEdit: () => void;
@@ -63,6 +64,7 @@ function TranscriptRowImpl({
   ranges,
   currentMatchStart,
   editing,
+  readOnly,
   onSeek,
   onStartEdit,
   onCancelEdit,
@@ -118,7 +120,7 @@ function TranscriptRowImpl({
       data-seg-id={segment.id}
       onContextMenu={(event) => {
         event.preventDefault();
-        if (!editing) onStartEdit(segment.id);
+        if (!editing && !readOnly) onStartEdit(segment.id);
       }}
       onClick={(event) => {
         if (event.ctrlKey || event.metaKey) {
@@ -126,7 +128,13 @@ function TranscriptRowImpl({
           onSeek(segment.startMs);
         }
       }}
-      title={editing ? undefined : "Right-click to edit · Ctrl/Cmd+click to jump here"}
+      title={
+        editing
+          ? undefined
+          : readOnly
+            ? "Ctrl/Cmd+click to jump here"
+            : "Right-click to edit · Ctrl/Cmd+click to jump here"
+      }
       className={`group scroll-mt-3 rounded-lg border px-3 py-2 transition ${
         active
           ? "border-accent/40 bg-accent-soft/35"
