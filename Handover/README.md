@@ -56,6 +56,8 @@ Latest verified artifact on this machine: job `5f8f4dd3-d7f5-42da-bb03-5961a2c88
   experiment history (important: prevents repeating dead ends).
 - [operations.md](operations.md) — environment variables, commands, tests, costs, troubleshooting.
 - [known-issues-and-next-steps.md](known-issues-and-next-steps.md) — prioritized backlog.
+- [../docs/hosting.md](../docs/hosting.md) — home-host runbook: NSSM service, Tailscale Serve,
+  Cloudflare Tunnel + Access, backups, updates.
 
 ## Hard rules for the next agent
 

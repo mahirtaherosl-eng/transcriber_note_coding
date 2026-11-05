@@ -120,6 +120,20 @@ for 118 s). Read [providers.md](providers.md) before spending more time here.
 - Delete a conversation from the home page to remove its audio, transcript, raw response, peaks, and
   all archived versions.
 
+## Deployment (home host)
+
+The app is single-instance: one `next start` process with a persistent `.data/` directory. The
+Windows runbook — production build, NSSM service, Tailscale Serve (primary), Cloudflare Tunnel +
+Access (fallback), backups, updates — is [docs/hosting.md](../docs/hosting.md).
+
+- Keep `next start` bound to `127.0.0.1`; both tunnels connect to it locally. Never expose port 3000
+  directly, and never use Tailscale Funnel or a Cloudflare hostname without Access: the app has no
+  authentication.
+- Never run two instances against the same `.data/`; the queue and atomic writes assume one process.
+- Cloudflare's standard plans cap proxied request bodies at ~100 MB and origin requests at ~100 s.
+  Large uploads must use Tailscale.
+- Stopping the service mid-transcription marks the job `interrupted`; retry is manual by design.
+
 ## Git
 
 Current history: `3f1363a openrouter option`, `01adfd6 Initial commit`. The working tree is clean in

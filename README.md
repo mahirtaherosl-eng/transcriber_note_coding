@@ -136,6 +136,17 @@ upload ──stream──> .data/library/{id}/original.ext
 - Server restart while a job is running marks it **interrupted** rather than silently retrying, so an
   ambiguous failure cannot bill twice.
 
+## Hosting online
+
+The app expects **one always-on Node process with a persistent `.data/` directory**. To reach it
+remotely, keep it bound to `127.0.0.1` and put an authenticating tunnel in front — **Tailscale
+Serve** for private access, or **Cloudflare Tunnel + Access** as a browser fallback. It has no
+authentication of its own and must never be exposed directly; Cloudflare's standard plans also cap
+proxied uploads at about 100 MB, so large files should go through Tailscale.
+
+See [docs/hosting.md](docs/hosting.md) for the Windows runbook: production build, NSSM service,
+both tunnels, backups, updates, and troubleshooting.
+
 ## Scripts
 
 | Command | Purpose |
