@@ -1,7 +1,7 @@
 import { generatePeaks } from "@/lib/audio/peaks";
 import { probeAudio } from "@/lib/audio/probe";
 import { archiveCurrentTranscript } from "@/lib/history";
-import { getProvider } from "@/lib/providers";
+import { getProvider, isProviderId } from "@/lib/providers";
 import { buildTranscript } from "@/lib/transcript/build";
 import { patchJob, readJob } from "@/lib/jobs/store";
 import {
@@ -107,6 +107,11 @@ async function runJob(id: string): Promise<void> {
       await patchJob(id, { durationMs });
     }
 
+    if (!isProviderId(job.provider)) {
+      throw new Error(
+        "This transcription uses an engine that is no longer available. Choose a different engine in the explorer.",
+      );
+    }
     const provider = getProvider(job.provider);
     const result = await provider.transcribe(
       {

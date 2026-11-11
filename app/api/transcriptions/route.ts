@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
-import { resolveProviderId } from "@/lib/providers";
+import { isProviderId, PROVIDERS, resolveProviderId } from "@/lib/providers";
 import { supportsLanguage } from "@/lib/languages";
+import { providerReady } from "@/lib/settings/server";
 import { enqueue } from "@/lib/jobs/queue";
 import { createJob } from "@/lib/jobs/store";
 import { probeAudio } from "@/lib/audio/probe";
@@ -25,14 +26,32 @@ const MAX_DURATION_SEC = 4 * 60 * 60;
 
 export async function GET() {
   const jobs = await listStoredJobs();
-  return Response.json({ jobs, defaultProvider: resolveProviderId() });
+  const defaultProvider = resolveProviderId();
+  return Response.json({
+    jobs,
+    defaultProvider,
+    defaultProviderReady: providerReady(defaultProvider),
+  });
 }
 
 export async function POST(request: Request) {
   const url = new URL(request.url);
   const fileName = (url.searchParams.get("fileName") ?? "recording").slice(0, 240);
   const language = url.searchParams.get("language") ?? "auto";
-  const providerId = resolveProviderId(url.searchParams.get("provider"));
+  const requestedProvider = url.searchParams.get("provider");
+  if (requestedProvider && requestedProvider !== "auto" && !isProviderId(requestedProvider)) {
+    return Response.json({ error: `Unknown provider "${requestedProvider}".` }, { status: 400 });
+  }
+  const providerId = resolveProviderId(requestedProvider);
+
+  if (!providerReady(providerId)) {
+    return Response.json(
+      {
+        error: `The ${PROVIDERS[providerId].label} engine needs an API key. Add one in Settings (or .env.local) and try again.`,
+      },
+      { status: 400 },
+    );
+  }
 
   if (!supportsLanguage(providerId, language)) {
     return Response.json(

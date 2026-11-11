@@ -1,8 +1,10 @@
 import type { HistoryEntry, Job, TranscriptFile } from "@/lib/transcript/schema";
+import type { SettingsStatus, SettingsUpdate } from "@/lib/settings/schema";
 
 export type JobListResponse = {
   jobs: Job[];
   defaultProvider?: string;
+  defaultProviderReady?: boolean;
 };
 
 export type AttachResponse = {
@@ -103,6 +105,18 @@ export async function restoreHistory(
     `/api/transcriptions/${encodeURIComponent(id)}/history/${encodeURIComponent(version)}?action=restore`,
     { method: "POST" },
   );
+}
+
+export async function getSettings(): Promise<SettingsStatus> {
+  return fetchJson<SettingsStatus>("/api/settings", { cache: "no-store" });
+}
+
+export async function saveSettings(update: SettingsUpdate): Promise<SettingsStatus> {
+  return fetchJson<SettingsStatus>("/api/settings", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(update),
+  });
 }
 
 export function historyDownloadUrl(id: string, version: string): string {

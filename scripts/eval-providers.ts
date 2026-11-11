@@ -1,17 +1,16 @@
 import { readFile } from "node:fs/promises";
 import { probeAudio } from "@/lib/audio/probe";
 import { getProvider } from "@/lib/providers";
+import { isProviderId, type ProviderId } from "@/lib/providers/ids";
 import { buildTranscript } from "@/lib/transcript/build";
 import type { Job } from "@/lib/transcript/schema";
 
-type ProviderIdLike =
-  | "mock"
-  | "elevenlabs"
-  | "gemini"
-  | "openrouter"
-  | "qwen"
-  | "soniox"
-  | "azure";
+// tsx does not load .env.local automatically; Settings keys come from the file store.
+try {
+  process.loadEnvFile(".env.local");
+} catch {
+  // .env.local is optional.
+}
 
 function option(name: string): string | undefined {
   const prefix = `--${name}=`;
@@ -65,7 +64,18 @@ async function main() {
     process.exit(1);
   }
 
-  const providerIds = (option("providers") ?? "mock").split(",") as ProviderIdLike[];
+  const requestedIds = (option("providers") ?? "mock")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+  const unknownIds = requestedIds.filter((id) => !isProviderId(id));
+  if (unknownIds.length > 0) {
+    console.error(
+      `Unknown provider(s): ${unknownIds.join(", ")}. Available: openrouter, elevenlabs, gemini, mock.`,
+    );
+    process.exit(1);
+  }
+  const providerIds = requestedIds as ProviderId[];
   const language = option("language") ?? "auto";
   const referencePath = option("reference");
   const reference = referencePath ? await readFile(referencePath, "utf8") : null;

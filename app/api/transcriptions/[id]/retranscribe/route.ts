@@ -1,7 +1,8 @@
 import { enqueue } from "@/lib/jobs/queue";
 import { patchJob, readJob } from "@/lib/jobs/store";
-import { LANGUAGES, supportsLanguage, type ProviderId } from "@/lib/languages";
-import { PROVIDERS } from "@/lib/providers";
+import { LANGUAGES, supportsLanguage } from "@/lib/languages";
+import { isProviderId, PROVIDERS, resolveProviderId } from "@/lib/providers";
+import { providerReady } from "@/lib/settings/server";
 import { RetranscribeRequestSchema } from "@/lib/transcript/schema";
 import { readJsonBody } from "@/lib/server/http";
 import { assertSafeId, findAudioFile } from "@/lib/storage";
@@ -56,14 +57,25 @@ export async function POST(request: Request, context: RouteContext) {
 
   const { provider: providerInput, language: languageInput, numSpeakers } = parsed.data;
 
-  const providerCandidate = providerInput ?? job.provider;
-  if (!(providerCandidate in PROVIDERS)) {
+  const requestedProvider = providerInput ?? job.provider;
+  if (requestedProvider !== "auto" && !isProviderId(requestedProvider)) {
     return Response.json(
-      { error: `Unknown provider "${providerCandidate}".` },
+      {
+        error: `This transcription uses an engine that is no longer available ("${requestedProvider}"). Choose a different engine.`,
+      },
       { status: 400 },
     );
   }
-  const providerId = providerCandidate as ProviderId;
+  const providerId = requestedProvider === "auto" ? resolveProviderId() : requestedProvider;
+
+  if (!providerReady(providerId)) {
+    return Response.json(
+      {
+        error: `The ${PROVIDERS[providerId].label} engine needs an API key. Add one in Settings (or .env.local) and try again.`,
+      },
+      { status: 400 },
+    );
+  }
 
   const language = languageInput ?? job.language;
   if (!LANGUAGES.some((candidate) => candidate.id === language)) {

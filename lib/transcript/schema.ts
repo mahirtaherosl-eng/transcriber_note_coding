@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PROVIDER_IDS, type ProviderId } from "@/lib/providers/ids";
 
 export const SCHEMA_VERSION = 1;
 
@@ -56,15 +57,7 @@ export const TranscriptSchema = z
       sha256: z.string(),
     }),
     transcription: z.object({
-      provider: z.enum([
-        "elevenlabs",
-        "gemini",
-        "openrouter",
-        "qwen",
-        "soniox",
-        "azure",
-        "mock",
-      ]),
+      provider: z.enum(PROVIDER_IDS as unknown as [ProviderId, ...ProviderId[]]),
       model: z.string(),
       requestedLanguage: z.string(),
       detectedLanguage: z.string().optional(),

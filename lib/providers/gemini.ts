@@ -5,6 +5,7 @@ import path from "node:path";
 import { Agent, fetch as undiciFetch } from "undici";
 import { requireBinary, runBinary } from "@/lib/audio/ffmpeg";
 import { providerLanguageCode } from "@/lib/languages";
+import { getProviderKey } from "@/lib/settings/server";
 import type { ProviderResult, SttProvider, Token } from "@/lib/providers/types";
 
 const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/interactions";
@@ -144,10 +145,10 @@ export const geminiProvider: SttProvider = {
     maxDurationSec: MAX_DURATION_SEC,
   },
   async transcribe(input, ctx): Promise<ProviderResult> {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = getProviderKey("gemini");
     if (!apiKey) {
       throw new Error(
-        "GEMINI_API_KEY is not set. Add it to .env.local and restart the dev server.",
+        "No Gemini API key is configured. Add one in Settings, or set GEMINI_API_KEY in .env.local and restart.",
       );
     }
 

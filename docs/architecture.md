@@ -7,14 +7,14 @@
 | Framework | Next.js 16 App Router, React 19, TypeScript |
 | Styling | Tailwind CSS 4 (custom theme in `app/globals.css`) |
 | Client state | `zustand` (`lib/client/store.ts`) |
-| Validation | `zod` (`lib/transcript/schema.ts`) |
+| Validation | `zod` (`lib/transcript/schema.ts`, `lib/settings/schema.ts`) |
 | Audio processing | `ffmpeg-static` / `ffprobe-static` (`lib/audio/`) |
 | Provider HTTP | `undici` (long-timeout `Agent` for STT calls) |
 | Zip export | `archiver` 7 |
 | Tests | Vitest (`tests/`) |
 
-There is no database, no auth, and no server-side user account. Everything persistent is files under
-`.data/` on the machine.
+There is no database, no auth, and no server-side account. Everything persistent is files under
+`.data/` on the machine running the app.
 
 ## End-to-end flow
 
@@ -27,7 +27,7 @@ POST /api/transcriptions?fileName=…&language=…&provider=…
   │  ffprobe duration; sha256; create job.json; enqueue(id)
   ▼
 Disk-backed job queue (lib/jobs/queue.ts)
-  │  provider.transcribe()  (OpenRouter MAI, Scribe, Gemini, mock, …)
+  │  provider.transcribe()  (OpenRouter MAI, Scribe, Gemini, mock)
   │  buildTranscript(..., run time) → segmentTokens()
   │  archive current transcript → history/{version}.transcript.json + .meta.json
   │  raw provider response → raw.json
@@ -44,6 +44,10 @@ Explorer (/c/{id})
   ├─ GET …/history/{version}                 (download a version)
   ├─ POST …/history/{version}?action=restore (swap current transcript, reversible)
   └─ GET /api/export/{id}?format=json|srt|vtt|txt|zip
+
+Settings (/settings)
+  ├─ GET /api/settings                       (masked key status only)
+  └─ PUT /api/settings                       (save keys / default engine)
 ```
 
 ## Directory map
@@ -51,90 +55,86 @@ Explorer (/c/{id})
 ```
 app/
   page.tsx                              upload + recent library
+  settings/page.tsx                     API keys and default engine
   c/[id]/page.tsx                       explorer route
-  api/transcriptions/route.ts           POST upload, GET list (+ defaultProvider)
-  api/transcriptions/[id]/route.ts      GET status, DELETE, POST retry/cancel
-  api/transcriptions/[id]/transcript/   GET + PATCH transcript
-  api/transcriptions/[id]/audio/        POST attach audio to an imported transcript
+  api/transcriptions/…                  upload, status, transcript, re-transcribe, history
   api/audio/[id]/route.ts               HTTP Range streaming (206/416/HEAD)
   api/peaks/[id]/route.ts               waveform peaks (cached)
   api/export/[id]/route.ts              JSON/SRT/VTT/TXT/zip
   api/import/route.ts                   import .transcript.json
+  api/settings/route.ts                 masked settings read/write
 components/
-  upload/UploadDropzone.tsx             file picker, language/provider/speaker count
-  explorer/Explorer.tsx                 load/poll, editing, undo, attach, layout
-  explorer/TranscriptPane.tsx           search, speaker filter, follow scroll
-  explorer/TranscriptRow.tsx            row rendering + right-click editor
-  explorer/AudioPane.tsx                transport, speed, attach prompt
-  explorer/Waveform.tsx                 canvas peaks/segments/playhead
-  explorer/usePlaybackSync.ts           audio time → store, keyboard shortcuts
+  explorer/                             transcript pane, rows, waveform, playback, menus
+  settings/SettingsForm.tsx             API key form
 lib/
-  providers/                            one adapter per engine; registry + resolution + client catalog
+  providers/                            adapters, ids, client-safe catalog, registry
   transcript/                           schema, segmentation, build, search, export, lookup
-  history.ts                            transcript version archive (archive/list/read)
   jobs/                                 disk job records + queue
   audio/                                ffmpeg paths, probe, peaks, Range parsing
   client/                               fetch helpers + zustand store
+  settings/                             settings schema (client-safe) + server store
+  history.ts                            transcript version archive
+  languages.ts                          language list + provider-specific codes
   storage.ts                            `.data` layout, atomic writes, sha256
-sidecar/                                optional local Qwen3-ASR + pyannote (experimental)
 scripts/                                fixture and provider eval helpers
-tests/                                  segment/search/range unit tests
+tests/                                  segmentation, search, range, history, settings, providers
 ```
 
 ## Storage layout
 
 ```
-.data/library/{id}/
-  job.json          status, language, provider/model, progress, error, heartbeat
-  original.{ext}    original audio (never modified)
-  transcript.json   canonical portable transcript (current version)
-  raw.json          unmodified response of the current run only (not versioned)
-  peaks.json        interleaved min/max waveform buckets
-  history/
-    {version}.transcript.json   archived transcript (full TranscriptFile)
-    {version}.meta.json         provider/model/language, timestamps, counts, digest
+.data/
+  settings.json                     saved API keys + default engine (plaintext, gitignored)
+  library/{id}/
+    job.json                        status, language, provider/model, progress, error, heartbeat
+    original.{ext}                  original audio (never modified)
+    transcript.json                 canonical portable transcript (current version)
+    raw.json                        unmodified response of the current run (not versioned)
+    peaks.json                      interleaved min/max waveform buckets
+    history/
+      {version}.transcript.json     archived transcript (full TranscriptFile)
+      {version}.meta.json           provider/model/language, timestamps, counts, digest
 ```
-
-`version` is `YYYYMMDDThhmmssZ-<6 hex>`, so versions sort lexicographically by archive time.
-History is created at the overwrite point, not at request time, so failed runs never lose the current
-transcript. See “Version history” below.
 
 `job.status` is one of `queued | processing | completed | failed | interrupted | cancelled`.
 `interrupted` is deliberate: a server restart must not silently retry and double-bill. Retry is an
 explicit user action. `queue.ts` keeps the runner chain on `globalThis` and reconciles disk jobs on
 first access.
 
+A history `version` is `YYYYMMDDThhmmssZ-<6 hex>`, so versions sort lexicographically by archive
+time.
+
 ## Transcript model
 
 Defined in [`lib/transcript/schema.ts`](../lib/transcript/schema.ts); validated on every read/write.
 
-- `schemaVersion: 1`
-- `createdAt` is the time the run that produced this transcript finished, so re-runs get a new
-  timestamp (the original upload time stays on `job.createdAt`).
+- `schemaVersion: 1`.
+- `createdAt` is the time the run that produced the transcript finished; re-runs get a new timestamp
+  (the original upload time stays on `job.createdAt`).
 - `source` includes the audio SHA-256 so a re-attached file can be checked against the transcript.
 - `speakers[]` stores display names and colors, so renames survive export/import.
 - `segments[]` are sorted, half-open, non-overlapping; each has `startMs`, `endMs`, `speakerId`,
   `text`, optional `edited`, and lexical `words[]`.
-- Invariants are enforced by `superRefine`; `writeTranscript()` throws a readable error if a future
-  provider violates them.
+- Invariants are enforced by `superRefine`; `writeTranscript()` throws a readable error if a provider
+  violates them.
 
-**Important:** `lib/transcript/segment.ts` normalizes boundaries after grouping. Provider
-timestamps are floats; converting them to integer milliseconds can invert adjacent boundaries by
-1 ms. `normalizeSegmentBounds()` trims the earlier segment's end to the next start, renumbers, and
-guarantees ordered non-overlapping output. Do not remove this; the original production failure was
+**Important:** `lib/transcript/segment.ts` normalizes boundaries after grouping. Provider timestamps
+are floats; converting them to integer milliseconds can invert adjacent boundaries by 1 ms.
+`normalizeSegmentBounds()` trims the earlier segment's end to the next start, renumbers, and
+guarantees ordered non-overlapping output. Do not remove this; the original failure was
 `Segment seg_0013 overlaps or is out of order`.
 
 ## Version history
 
 `POST /api/transcriptions/{id}/retranscribe` queues a run with a new provider/language but reuses the
-stored audio. It does **not** archive anything itself. `runJob` builds the new transcript, then calls
+stored audio. It does not archive anything itself. `runJob` builds the new transcript, then calls
 `archiveCurrentTranscript(id, "rerun")` immediately before overwriting `transcript.json`:
 
 - Archiving at the overwrite point covers every path that can replace a transcript (including a retry
   of a completed job) and captures edits made up to the last moment.
 - If archiving throws, the job fails and the current transcript is untouched.
-- Duplicates are skipped by comparing a sha256 digest (of the zod-parsed transcript) against every
-  archived version, so restores and repeated runs do not pile up identical copies.
+- Duplicates are skipped by comparing a sha256 digest over every archived version, so restores and
+  repeated runs do not pile up identical copies.
 - A corrupt `transcript.json` is never silently overwritten; the run fails instead.
 
 While a run is in progress the previous transcript stays current and the explorer shows it read-only
@@ -148,6 +148,34 @@ audio SHA-256 differs from the currently attached audio.
 
 `raw.json` belongs to the current transcript only: it is overwritten on each run and is not archived
 or restored with a version.
+
+## Settings and key resolution
+
+The in-app Settings page writes `.data/settings.json`:
+
+```json
+{
+  "provider": "openrouter",
+  "keys": { "openrouter": "sk-or-…", "elevenlabs": "sk_…", "gemini": "…" }
+}
+```
+
+- The file is plaintext and gitignored. It is never returned to the client; the API exposes only
+  `{ saved, env }` booleans per provider.
+- Reads are per request (`readFileSync` of a small file, no module-level cache), so saved keys apply
+  immediately. `.env.local` is read by Next at server start, so changes there require a restart.
+- Resolution order: explicit upload/retranscribe provider → saved `provider` → `STT_PROVIDER` →
+  first configured key (OpenRouter, ElevenLabs, Gemini) → `mock`.
+- Key lookup: saved key first, then `OPENROUTER_API_KEY` / `ELEVENLABS_API_KEY` /
+  `GEMINI_API_KEY` from the environment.
+- Uploads and re-transcribes reject a keyed provider with no key before enqueueing.
+- A missing, corrupt, oversized, or partially invalid settings file never throws; fields are
+  salvaged where possible and the rest falls back to defaults.
+- Writes use a UUID temp file in the same directory, an atomic rename (with a small Windows
+  `EPERM`/`EBUSY` retry), and a `globalThis` mutex.
+
+`lib/settings/schema.ts` is client-safe; `lib/settings/server.ts` is the only module that touches the
+filesystem.
 
 ## Provider contract
 
@@ -164,7 +192,7 @@ type Token = {
 };
 
 interface SttProvider {
-  id: "elevenlabs" | "gemini" | "openrouter" | "qwen" | "soniox" | "azure" | "mock";
+  id: "openrouter" | "elevenlabs" | "gemini" | "mock";
   label: string;
   capabilities: { languages: string[]; diarization: boolean; wordTimestamps: boolean; … };
   transcribe(input, ctx): Promise<ProviderResult>;
@@ -175,6 +203,9 @@ Adapters return flat tokens; shared code maps provider speaker ids to `spk_1…`
 `segmentTokens()` starts a new segment on speaker change, a >700 ms gap, a sentence end after ~120
 chars, or a 15 s cap. It concatenates `word` + `spacing` tokens so English/code-switched text keeps
 spaces, and joins CJK/Thai without spaces. `normalizeSegmentBounds()` then fixes overlaps.
+
+Provider ids live in [`lib/providers/ids.ts`](../lib/providers/ids.ts) — the single client-safe source
+for the union, runtime checks, and the settings/schema enums.
 
 ## Upload, audio, and peaks
 
@@ -201,12 +232,18 @@ spaces, and joins CJK/Thai without spaces. `normalizeSegmentBounds()` then fixes
 - Inline editing: right-click swaps the row to a textarea; `isComposing` is respected for Cantonese
   and Bengali IMEs; Enter saves, Shift+Enter newlines, Esc cancels. PATCH is optimistic with rollback
   and a session undo stack.
+- Editing is disabled while a job is queued/processing; the server also rejects PATCH with 409.
 
 ## Security and privacy
 
-- The app binds `127.0.0.1` via `next dev -H 127.0.0.1`. Endpoints are unauthenticated and can read
-  or delete local files; never expose them on a public interface.
-- API keys are read server-side only. There is no `NEXT_PUBLIC_` key.
-- Audio is sent only to the selected provider. `.data/` and `.env.local` are gitignored.
-- The zip export bundles the original audio and transcript; the JSON export is portable and
-  re-importable.
+- The app binds `127.0.0.1` via `next dev|start -H 127.0.0.1`. Endpoints are unauthenticated and can
+  read or delete local files; never expose them on a public interface.
+- API keys are read server-side only. There is no `NEXT_PUBLIC_` key. The settings API returns masked
+  status, never values.
+- `.data/` (audio, transcripts, raw responses, history, `settings.json`) and `.env.local` are
+  gitignored. A `.data/` backup contains plaintext keys; encrypt it or exclude `settings.json`.
+- If the project folder is cloud-synced (OneDrive, Dropbox), `.data/` and `.env.local` sync off the
+  machine too.
+- Audio is sent only to the provider selected for that run.
+- The zip export bundles the original audio and the current transcript; the JSON export is portable
+  and re-importable. History is not part of the zip.

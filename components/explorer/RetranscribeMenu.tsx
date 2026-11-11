@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import { LANGUAGES, supportsLanguage } from "@/lib/languages";
-import { PROVIDER_OPTIONS, providerLabel } from "@/lib/providers/catalog";
+import { PROVIDER_OPTIONS } from "@/lib/providers/catalog";
+import { isProviderId } from "@/lib/providers/ids";
 import type { Job } from "@/lib/transcript/schema";
 
 export type RetranscribeOptions = {
@@ -19,8 +20,9 @@ type Props = {
 };
 
 export default function RetranscribeMenu({ job, disabled, onStart }: Props) {
+  const jobProvider = isProviderId(job.provider) ? job.provider : "openrouter";
   const [open, setOpen] = useState(false);
-  const [provider, setProvider] = useState(job.provider);
+  const [provider, setProvider] = useState<string>(jobProvider);
   const [language, setLanguage] = useState(job.language);
   const [speakers, setSpeakers] = useState(job.numSpeakers ? String(job.numSpeakers) : "");
   const [busy, setBusy] = useState(false);
@@ -28,16 +30,13 @@ export default function RetranscribeMenu({ job, disabled, onStart }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    setProvider(job.provider);
-    setLanguage(supportsLanguage(job.provider, job.language) ? job.language : "auto");
+    setProvider(jobProvider);
+    setLanguage(supportsLanguage(jobProvider, job.language) ? job.language : "auto");
     setSpeakers(job.numSpeakers ? String(job.numSpeakers) : "");
     setError(null);
-  }, [open, job.provider, job.language, job.numSpeakers]);
+  }, [open, jobProvider, job.language, job.numSpeakers]);
 
-  const providers = useMemo(() => {
-    if (PROVIDER_OPTIONS.some((option) => option.id === job.provider)) return PROVIDER_OPTIONS;
-    return [{ id: job.provider, label: providerLabel(job.provider) }, ...PROVIDER_OPTIONS];
-  }, [job.provider]);
+  const providers = PROVIDER_OPTIONS;
 
   const languages = useMemo(
     () => LANGUAGES.filter((option) => supportsLanguage(provider, option.id)),

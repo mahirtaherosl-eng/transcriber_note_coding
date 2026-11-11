@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
@@ -10,6 +11,7 @@ import {
   FolderOpen,
   Languages,
   Loader2,
+  Settings as SettingsIcon,
   Trash2,
   UploadCloud,
   Users,
@@ -83,6 +85,7 @@ export default function HomePage() {
 
   const [jobs, setJobs] = useState<Job[]>([]);
   const [defaultProvider, setDefaultProvider] = useState<string>("mock");
+  const [defaultProviderReady, setDefaultProviderReady] = useState(true);
   const [file, setFile] = useState<File | null>(null);
   const [language, setLanguage] = useState("auto");
   const [numSpeakers, setNumSpeakers] = useState("");
@@ -98,6 +101,7 @@ export default function HomePage() {
       const data = await listTranscriptions();
       setJobs(data.jobs);
       if (data.defaultProvider) setDefaultProvider(data.defaultProvider);
+      setDefaultProviderReady(data.defaultProviderReady !== false);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Could not load recent transcriptions.");
     }
@@ -186,7 +190,7 @@ export default function HomePage() {
         <div>
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-edge bg-panel px-3 py-1 text-xs text-fog">
             <span className="h-1.5 w-1.5 rounded-full bg-ok" />
-            Local-only · your audio stays on this machine
+            Local-only · audio goes only to your chosen provider
           </div>
           <h1 className="text-4xl font-semibold tracking-tight text-paper">
             Read the conversation.
@@ -197,6 +201,13 @@ export default function HomePage() {
             in Cantonese, English, Bengali, and more.
           </p>
         </div>
+
+        <Link
+          href="/settings"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-edge bg-panel px-3 py-2 text-xs text-fog transition hover:border-accent/50 hover:text-paper"
+        >
+          <SettingsIcon size={14} /> Settings
+        </Link>
       </header>
 
       <section className="rounded-2xl border border-edge bg-panel/80 p-5 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.9)] backdrop-blur">
@@ -315,13 +326,20 @@ export default function HomePage() {
           </label>
         </div>
 
-        {defaultProvider === "mock" && (
+        {(defaultProvider === "mock" || !defaultProviderReady) && (
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-300/25 bg-amber-300/5 px-3 py-2 text-xs text-amber-200/90">
             <AlertTriangle size={14} className="mt-0.5 shrink-0" />
             <span>
-              No <span className="font-mono">ELEVENLABS_API_KEY</span> found, so uploads will use the offline
-              mock transcript. Add the key to <span className="font-mono">.env.local</span> and restart the
-              dev server for real transcription.
+              {defaultProvider === "mock"
+                ? "Uploads will use the offline mock transcript."
+                : "The selected default engine has no API key, so uploads will be rejected."}{" "}
+              <Link
+                href="/settings"
+                className="underline decoration-dotted underline-offset-2 transition hover:text-paper"
+              >
+                Add a key in Settings
+              </Link>{" "}
+              for real transcription.
             </span>
           </div>
         )}

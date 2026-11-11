@@ -1,91 +1,76 @@
 # Transcriber
 
-A local-only web app for long conversations: upload an audio file, transcribe it with speaker
-labels, then read and listen side by side. Built for Cantonese, English, Bengali, and code-switched
-audio where no single model wins everywhere.
+A local-first web app for long conversations: upload an audio file, transcribe it with speaker labels
+and timestamps, then read and listen side by side. Built for Cantonese, English, Bengali, and
+code-switched audio where no single model wins everywhere.
 
 ![two panes: searchable transcript on the left, waveform and playback on the right](docs/screenshot.png)
 
+Everything runs on your computer. There is no account, no server, and no database; audio is sent only
+to the transcription provider you choose, and transcripts stay under `.data/` on your machine.
+
+## Requirements
+
+- **Node.js 20.9 or newer** and npm — [download Node.js](https://nodejs.org/)
+- Windows, macOS, or Linux
+- An API key from a transcription provider (optional — the app has an offline mock mode)
+
 ## Quick start
 
+### Easiest: double-click a launcher
+
+- **Windows:** double-click [`start-windows.bat`](start-windows.bat).
+- **macOS:** double-click [`start-mac-linux.command`](start-mac-linux.command). If macOS blocks it,
+  right-click → **Open**.
+- **Linux:** run `./start-mac-linux.command` (or `bash start-mac-linux.command`).
+
+The launcher checks Node.js, installs dependencies on the first run, finds a free port, starts the
+app, and opens your browser. Then click **Settings** and paste an API key. Windows may show a
+SmartScreen prompt for a downloaded `.bat`; choose **More info → Run anyway**.
+
+Keep the launcher window open while you use the app — closing it stops the server.
+
+### From a terminal
+
 ```bash
+git clone https://github.com/mahirtaherosl-eng/transcriber_note_coding.git
+cd transcriber_note_coding
 npm install
 npm run dev
 ```
 
-Open <http://127.0.0.1:3000>. Without an API key the app runs in **offline mock mode** — it produces a
-synthetic two-speaker conversation so you can try the whole UI without spending anything.
+Open <http://127.0.0.1:3000>, then click **Settings** and paste an API key. That's it — the next
+upload uses the real provider.
+
+No key yet? The app runs in **offline mock mode**: it produces a synthetic two-speaker conversation
+so you can try the whole UI for free.
 
 ```bash
 npm run fixture   # create a 45-second demo conversation in the library
 ```
 
-## Real transcription
+## API keys
 
-Create `.env.local`:
+Keys are entered on the in-app **[Settings](http://127.0.0.1:3000/settings)** page. They are stored
+in `.data/settings.json` on your machine, are never sent anywhere except the provider, and apply
+immediately — no restart. The API only ever returns whether a key is configured, never the value.
 
-```bash
-ELEVENLABS_API_KEY=sk_...
-# optional; leave unset to auto-select Scribe when the key is present
-STT_PROVIDER=elevenlabs
-```
+| Provider | Best for | Cost (approx.) | Get a key |
+|---|---|---|---|
+| **OpenRouter MAI-Transcribe-2** (recommended) | Cantonese, code-switching, diarization | ~$0.10 / audio-hour | <https://openrouter.ai/keys> |
+| **ElevenLabs Scribe v2** | English, Mandarin, long files (~10 h) | ~$0.22 / audio-hour | <https://elevenlabs.io> |
+| **Google Gemini 3.5 Transcribe** | 30-minute diarized files | ~$0.18–0.30 / audio-hour | <https://aistudio.google.com/apikey> |
+| **Offline mock** | Trying the UI with no key | free | — |
 
-Restart `npm run dev`. The engine picker on the upload page now defaults to
-**ElevenLabs Scribe v2** (~$0.22/hour of audio).
+Notes:
 
-### MAI-Transcribe-2 via OpenRouter (best for trilingual code-switching)
-
-```bash
-OPENROUTER_API_KEY=sk-or-...
-OPENROUTER_MODEL=microsoft/mai-transcribe-2
-STT_PROVIDER=openrouter   # optional: make MAI the default engine
-```
-
-- MAI-Transcribe-2 supports 60 languages including Cantonese (`yue`), automatic language
-  identification, mid-speech code-switching, speaker diarization, and word timestamps.
-- OpenRouter enables diarization through `provider.options.azure.diarization.enabled`; the app sends
-  this automatically for MAI.
-- ~$0.10/audio-hour. OpenRouter requires a **$0.50 minimum account balance for audio requests**.
-- OpenRouter's upstream timeout is 60 seconds and the request cap is 25 MB. The app transcodes M4A
-  (which Azure rejects) and oversized files to mono MP3 automatically.
-- Switch back to `google/gemini-3.5-transcribe` by changing `OPENROUTER_MODEL`; note that Gemini's
-  OpenRouter endpoint does not expose diarization.
-
-### Why Scribe v2
-
-| Provider | Cantonese | Bengali | Diarization | Word timestamps | Long files | Cost/hr |
-|---|---|---|---|---|---|---|
-| **MAI-Transcribe-2** (OpenRouter) | `yue`, code-switching | 60 languages | yes (Azure endpoint) | yes | ~1 h | ~$0.10 |
-| **ElevenLabs Scribe v2** | strongest commercial claim | supported | 32 speakers | yes | ~10 h | ~$0.22 |
-| Soniox `stt-async-v5` (stub) | `yue` unconfirmed | `bn` confirmed | yes | yes | 5 h | ~$0.10 |
-| Azure Speech (stub) | native `zh-HK` | `bn-IN` | yes | yes | batch | ~$1.00 |
-| Deepgram Nova-3 | `zh-HK`, weaker | listed | yes | yes | yes | ~$0.26 |
-| OpenAI `gpt-4o-transcribe-diarize` | decent | unclear | yes | segment only | ~23 min cap | ~$0.36 |
-
-Vendor WER claims are contested, so the choice is easy to re-test on your own audio:
-
-```bash
-npm run eval -- path/to/clip.wav --providers=elevenlabs,mock --language=yue --reference=clip.txt
-```
-
-The adapters live in [`lib/providers/`](lib/providers/). Soniox and Azure are deliberate stubs —
-implement `transcribe()` and add the key to enable them. Soniox is roughly half the price and handles
-mid-sentence code-switching, but its Cantonese support is unconfirmed; Azure is the safer Bengali
-fallback.
-
-The optional local Qwen3-ASR + pyannote sidecar in [`sidecar/`](sidecar/) is experimental. On this
-machine's 4 GB GPU it was too slow for meetings and normalized Cantonese; MAI-Transcribe-2 is the
-recommended engine for trilingual Cantonese/Mandarin/English audio.
-
-### Language notes
-
-- Cantonese uses Scribe's `yue` code, not `zh-HK`.
-- `auto` is the default and works for most single-language files. For heavily code-switched
-  Cantonese/English audio, try `yue` explicitly and compare.
-- Some ASR models emit **Standard Written Chinese** for spoken Cantonese. If that happens, search for
-  the spoken particles (唔, 嘅, 咗) will miss. The raw provider response is kept in
-  `.data/library/{id}/raw.json` so a post-processing pass can be added without re-billing.
-- The language list in [`lib/languages.ts`](lib/languages.ts) is the extension point.
+- OpenRouter requires a **$0.50 minimum account balance for audio requests**. A `402` with that
+  message means top up, not a bad key.
+- OpenRouter MAI supports about 30 minutes per request; Scribe supports long meetings.
+- To use a different OpenRouter model, set `OPENROUTER_MODEL` in `.env.local` and restart.
+- `.env.local` is still supported as an advanced alternative to Settings. Copy `.env.example` and
+  uncomment what you need; env changes require a restart. See
+  [the configuration notes](docs/development.md#api-keys-and-defaults).
 
 ## What the explorer does
 
@@ -120,32 +105,43 @@ upload ──stream──> .data/library/{id}/original.ext
                          │  ffprobe + sha256
                          ▼
                   disk-backed job queue
-                         │  ElevenLabs Scribe v2 (or mock)
+                         │  OpenRouter MAI, Scribe, Gemini, or mock
                          ▼
-                  transcript.json + peaks.json + raw.json
+       transcript.json + peaks.json + raw.json
+                         │  previous transcript → history/{version}.*
+                         ▼
+                  explorer /c/{id}
 ```
 
 - Local-only: no database, no auth. Everything is files under `.data/` (gitignored).
-- The audio is streamed to disk and served back with full HTTP Range support, including suffix
-  ranges — required for seeking in M4A files whose `moov` atom sits at the end.
+- Audio is streamed to disk and served back with full HTTP Range support, including suffix ranges —
+  required for seeking in M4A files whose `moov` atom sits at the end.
 - Waveform peaks are precomputed with ffmpeg at ~16k min/max buckets, so the browser never decodes
   hours of audio.
 - The transcript is a portable, versioned `.transcript.json` (see
-  [`lib/transcript/schema.ts`](lib/transcript/schema.ts)). Import one from the home page; if the audio
-  is missing you can attach it later and the timestamps line up.
-- Server restart while a job is running marks it **interrupted** rather than silently retrying, so an
-  ambiguous failure cannot bill twice.
+  [`lib/transcript/schema.ts`](lib/transcript/schema.ts)). Import one from the home page; if the
+  audio is missing you can attach it later and the timestamps line up.
+- Re-transcribing archives the previous transcript under `history/` before replacing it; the
+  **Versions** menu can download or restore any version.
+- A server restart while a job is running marks it **interrupted** rather than silently retrying, so
+  an ambiguous failure cannot bill twice.
 
-## Hosting online
+More detail: [architecture](docs/architecture.md) · [providers](docs/providers.md).
 
-The app expects **one always-on Node process with a persistent `.data/` directory**. To reach it
-remotely, keep it bound to `127.0.0.1` and put an authenticating tunnel in front — **Tailscale
-Serve** for private access, or **Cloudflare Tunnel + Access** as a browser fallback. It has no
-authentication of its own and must never be exposed directly; Cloudflare's standard plans also cap
-proxied uploads at about 100 MB, so large files should go through Tailscale.
+## Your data
 
-See [docs/hosting.md](docs/hosting.md) for the Windows runbook: production build, NSSM service,
-both tunnels, backups, updates, and troubleshooting.
+| Path | Contents |
+|---|---|
+| `.data/library/{id}/` | original audio, transcript, raw provider response, peaks, history |
+| `.data/settings.json` | API keys saved from the Settings page (plaintext) |
+| `.env.local` | optional environment keys and `STT_PROVIDER` |
+
+- `.data/` and `.env.local` are **gitignored**. Never commit or share them.
+- A `.data/` backup contains plaintext keys — encrypt the backup or exclude `settings.json`.
+- If this folder lives in OneDrive/Dropbox, those files sync off your machine too.
+- Delete a conversation from the library to remove its audio, transcript, raw response, peaks, and
+  archived versions.
+- The app binds to `127.0.0.1` and has no authentication. Do not expose it to a network.
 
 ## Scripts
 
@@ -153,21 +149,36 @@ both tunnels, backups, updates, and troubleshooting.
 |---|---|
 | `npm run dev` | Start on `127.0.0.1:3000` |
 | `npm run build` / `npm start` | Production build / serve |
-| `npm test` | Unit tests (segmentation, search, export, Range parsing) |
+| `npm run typecheck` | Generate Next types and type-check |
+| `npm test` | Unit tests |
 | `npm run fixture` | Create a demo conversation without an API call |
 | `npm run eval -- <audio>` | Compare providers and optional WER/CER |
 
-## Privacy
+## Troubleshooting
 
-Audio is sent only to the provider you select. Transcripts and audio stay in `.data/` on this
-machine, and the app binds to `127.0.0.1` because the endpoints have no authentication. Delete a
-transcription from the library to remove its audio, peaks, raw response, and transcript.
+| Symptom | Fix |
+|---|---|
+| Port 3000 in use | Stop the other process, or `npm run dev -- -p 3001` |
+| “The … engine needs an API key” | Add the key in Settings, or choose Auto/mock |
+| OpenRouter 402 | Add credit; audio requests require a $0.50 minimum balance |
+| OpenRouter 400/401 | Try WAV/MP3, and check the key in Settings |
+| Job shows **interrupted** | The server restarted mid-job; click Retry |
+| Changes to `.env.local` ignored | Restart `npm run dev`; Settings changes apply immediately |
+| ffmpeg/ffprobe missing | Re-run `npm install` |
+
+The full troubleshooting table, verification checklist, and contributor notes are in
+[development](docs/development.md). Current gaps are tracked in [known issues](docs/known-issues.md).
 
 ## Limitations
 
+- Colloquial Cantonese is still imperfect: some engines emit Standard Written Chinese. Compare
+  engines on your own audio with `npm run eval`.
+- OpenRouter MAI is limited to about 30 minutes per request; long meetings need Scribe or chunking.
 - Search is per-document; there is no cross-file index.
-- Version history is kept per conversation under `.data/` and is not included in the zip export.
-- No speaker-merging or segment split/merge yet (fixing a mis-diarized line is supported via the
-  speaker dropdown in edit mode).
+- No speaker merging or segment split/merge yet.
 - Very large WAV/AIFF files are uploaded as-is rather than transcoded to FLAC.
-- The real-provider path requires an ElevenLabs key; Soniox and Azure are stubs.
+- Version history is not included in the zip export.
+
+## License
+
+[MIT](LICENSE)

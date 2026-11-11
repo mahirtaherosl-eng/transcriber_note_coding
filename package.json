@@ -2,15 +2,18 @@
   "name": "transcriber-note",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.9.0"
+  },
   "scripts": {
     "dev": "next dev -H 127.0.0.1",
     "build": "next build",
     "start": "next start -H 127.0.0.1",
+    "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "eval": "tsx scripts/eval-providers.ts",
-    "fixture": "tsx scripts/make-fixture.ts",
-    "sidecar": "uv run --project sidecar uvicorn server:app --app-dir sidecar --host 127.0.0.1 --port 8001",
-    "sidecar:check": "uv run --project sidecar python sidecar/asr_check.py"
+    "fixture": "tsx scripts/make-fixture.ts"
   },
   "dependencies": {
     "archiver": "^7.0.1",

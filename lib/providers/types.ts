@@ -1,4 +1,4 @@
-import type { ProviderId } from "@/lib/languages";
+import type { ProviderId } from "@/lib/providers/ids";
 
 export type TokenType = "word" | "spacing" | "audio_event";
 

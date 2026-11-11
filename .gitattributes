@@ -1,2 +1,7 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Launchers: CRLF keeps double-clicked .bat files reliable on Windows.
+*.bat text eol=crlf
+*.command text eol=lf
+*.sh text eol=lf

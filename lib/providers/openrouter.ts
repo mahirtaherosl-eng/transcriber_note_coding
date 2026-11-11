@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { Agent, fetch as undiciFetch } from "undici";
 import { requireBinary, runBinary } from "@/lib/audio/ffmpeg";
+import { getProviderKey } from "@/lib/settings/server";
 import type { ProviderResult, SttProvider, Token } from "@/lib/providers/types";
 
 const ENDPOINT = "https://openrouter.ai/api/v1/audio/transcriptions";
@@ -51,7 +52,9 @@ const FORMAT_BY_EXTENSION: Record<string, string> = {
   ".aac": "aac",
 };
 
-// Azure, which serves MAI-Transcribe-2, rejects M4A/MP4/AAC/WebM/OGG.
+// MAI-Transcribe-2 is served by OpenRouter's Azure upstream, which rejects
+// M4A/MP4/AAC/WebM/OGG. This is unrelated to the removed direct Azure adapter:
+// the formats and provider.options.azure below are required for MAI.
 const AZURE_AUDIO_FORMATS = new Set(["mp3", "wav", "flac"]);
 
 function formatFor(fileName: string, mimeType: string): string {
@@ -162,10 +165,10 @@ export const openRouterProvider: SttProvider = {
     maxBytes: 25 * 1024 * 1024,
   },
   async transcribe(input, ctx): Promise<ProviderResult> {
-    const apiKey = process.env.OPENROUTER_API_KEY;
+    const apiKey = getProviderKey("openrouter");
     if (!apiKey) {
       throw new Error(
-        "OPENROUTER_API_KEY is not set. Add it to .env.local and restart the dev server.",
+        "No OpenRouter API key is configured. Add one in Settings, or set OPENROUTER_API_KEY in .env.local and restart.",
       );
     }
 

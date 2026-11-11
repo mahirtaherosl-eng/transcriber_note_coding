@@ -2,6 +2,7 @@ import { openAsBlob } from "node:fs";
 import path from "node:path";
 import { Agent, FormData, fetch as undiciFetch } from "undici";
 import { providerLanguageCode } from "@/lib/languages";
+import { getProviderKey } from "@/lib/settings/server";
 import type { ProviderResult, SttProvider, Token, TokenType } from "@/lib/providers/types";
 
 const ENDPOINT = "https://api.elevenlabs.io/v1/speech-to-text";
@@ -51,9 +52,11 @@ export const elevenLabsProvider: SttProvider = {
     maxBytes: 3 * 1024 * 1024 * 1024,
   },
   async transcribe(input, ctx): Promise<ProviderResult> {
-    const apiKey = process.env.ELEVENLABS_API_KEY;
+    const apiKey = getProviderKey("elevenlabs");
     if (!apiKey) {
-      throw new Error("ELEVENLABS_API_KEY is not set. Add it to .env.local and restart the dev server.");
+      throw new Error(
+        "No ElevenLabs API key is configured. Add one in Settings, or set ELEVENLABS_API_KEY in .env.local and restart.",
+      );
     }
 
     const blob = await openAsBlob(input.audioPath);
